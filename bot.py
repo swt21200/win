@@ -8,11 +8,9 @@ from flask import Flask
 from threading import Thread
 
 # ==================== CONFIGURATION ====================
-# Render Environment Variables ကနေ ဖတ်မယ်
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
 
-# Render Persistent Disk အတွက် Folder သတ်မှတ်ချက်
 DB_DIR = os.environ.get("DB_DIR", "/data")
 if not os.path.exists(DB_DIR):
     try:
@@ -146,6 +144,11 @@ def handle_all_messages(message):
             save_db(db_data)
             bot.send_message(chat_id, "🔑 ထည့်လိုသော Key ကို ရိုက်ထည့်ပါ...", reply_markup=ReplyKeyboardRemove())
             return
+        elif user_text == "🗑️ Key နှင့် Link ပြန်ဖျက်မည်":
+            db_data["user_states"][chat_id] = "AWAITING_KEY_DELETE"
+            save_db(db_data)
+            bot.send_message(chat_id, "🗑️ ဖျက်ချင်တဲ့ Key ကို ရိုက်ထည့်ပေးပါ...", reply_markup=ReplyKeyboardRemove())
+            return
         elif user_text == "📋 သတ်မှတ်ထားသော Key များစာရင်း":
             keys = db_data.get("keys_db", {})
             txt = "📋 **Key များစာရင်း**:\n\n" + ("\n".join([f"🔑 `{k}`: {v}" for k,v in keys.items()]) if keys else "မရှိသေးပါ။")
@@ -163,6 +166,15 @@ def handle_all_messages(message):
             return
 
         # Handle Admin Awaiting States
+        if state == "AWAITING_KEY_DELETE":
+            if user_text in db_data.get("keys_db", {}):
+                del db_data["keys_db"][user_text]
+                db_data["user_states"][chat_id] = "ADMIN_MAIN"
+                save_db(db_data)
+                bot.send_message(chat_id, f"✅ Key: `{user_text}` ကို အောင်မြင်စွာ ဖျက်လိုက်ပါပြီ။", reply_markup=get_admin_menu())
+            else:
+                bot.send_message(chat_id, "❌ အဆိုပါ Key ကို ရှာမတွေ့ပါ။", reply_markup=get_admin_menu())
+            return
         if state == "AWAITING_APPROVE_ID":
             db_data["user_states"][chat_id] = f"AWAITING_APPROVE_NAME:{user_text}"
             save_db(db_data)
@@ -233,4 +245,4 @@ def start_bot():
 if __name__ == "__main__":
     Thread(target=run_web_server, daemon=True).start()
     start_bot()
-
+    
