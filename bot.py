@@ -73,16 +73,19 @@ def get_admin_menu():
     markup.add(btn_approve, btn_block, btn_add_key, btn_view_keys, btn_del_key, btn_list, btn_exit)
     return markup
 
-def send_force_start(target_id, from_user_first_name):
-    pending_text = (
-        "🔒 **စနစ်ကို အသုံးပြုရန် ခွင့်ပြုချက် လိုအပ်ပါသည်**\n\n"
-        f"👤 သင့်အမည်: `{from_user_first_name}`\n"
-        f"🆔 သင့်ရဲ့ ID: `{target_id}`\n\n"
-        "⚠️ အကြောင်းကြားစာ: Admin မှ သင့်ရဲ့ အသုံးပြုခွင့်ကို ပိတ်သိမ်းလိုက်ပါပြီ။"
+def clear_user_chat_and_block(target_id):
+    """ စာဟောင်းတွေအကုန်လုံး အပေါ်မြှုပ်သွားအောင် နေရာလွတ်တွေအများကြီးပို့ပြီး Tab ပါ ဖျက်ချပစ်တဲ့ စနစ် """
+    blank_lines = "\n" * 80  # စာမျက်နှာအကျယ်ကြီးဖြစ်အောင် space ချပစ်ခြင်း
+    block_text = (
+        f"{blank_lines}"
+        "🔒 **စနစ်ကို အသုံးပြုရန် ခွင့်ပြုချက် မရှိတော့ပါ**\n\n"
+        "⚠️ **အကြောင်းကြားစာ:**\n"
+        "Admin မှ သင့်အား အသုံးပြုခွင့် ပိတ်သိမ်းလိုက်ပြီ ဖြစ်သောကြောင့် Bot အတွင်းရှိ စာများနှင့် စနစ်များအားလုံးကို ဆက်လက်အသုံးပြုနိုင်တော့မည် မဟုတ်ပါ။"
     )
     try:
-        bot.send_message(target_id, pending_text, reply_markup=ReplyKeyboardRemove(), parse_mode="Markdown")
-    except: pass
+        bot.send_message(target_id, block_text, reply_markup=ReplyKeyboardRemove(), parse_mode="Markdown")
+    except Exception as e:
+        print(f"[-] Block Notification Error: {e}")
 
 @bot.message_handler(commands=['start', 'help', 'admin'])
 def send_welcome(message):
@@ -156,7 +159,15 @@ def handle_all_messages(message):
             return
         elif user_text == "👤 ခွင့်ပြုထားသော User များစာရင်း":
             users = db_data.get("approved_users", {})
-            txt = "👤 **User များစာရင်း**:\n\n" + ("\n".join([f"• `{uid}`: {info['name']}" for uid, info in users.items()]) if users else "မရှိသေးပါ။")
+            if users:
+                user_list = []
+                for uid, info in users.items():
+                    used_key = info.get("used_key", "မသုံးရသေးပါ")
+                    join_date = info.get("date", "မသိရှိရပါ")
+                    user_list.append(f"• ID: `{uid}`\n  👤 အမည်: {info['name']}\n  📅 စသုံးသည့်ရက်: `{join_date}`\n  🔑 သုံးထားသော Key: `{used_key}`\n")
+                txt = "👤 **ခွင့်ပြုထားသော User များစာရင်း**:\n\n" + "\n".join(user_list)
+            else:
+                txt = "👤 **ခွင့်ပြုထားသော User များစာရင်း**:\n\nမရှိသေးပါ။"
             bot.send_message(chat_id, txt, parse_mode="Markdown")
             return
         elif user_text == "🚪 Admin Panel မှ ထွက်မည်":
@@ -182,7 +193,13 @@ def handle_all_messages(message):
             return
         if state and state.startswith("AWAITING_APPROVE_NAME:"):
             target_id = state.split(":")[1]
-            db_data["approved_users"][target_id] = {"name": user_text, "date": datetime.now().strftime("%d-%b-%Y"), "last_tab_msg_id": None}
+            # ရက်စွဲ၊ လ၊ ခုနှစ် အတိအကျကို format လုပ်ပြီး သိမ်းဆည်းခြင်း
+            current_date = datetime.now().strftime("%d-%m-%Y")
+            db_data["approved_users"][target_id] = {
+                "name": user_text, 
+                "date": current_date, 
+                "used_key": "မသုံးရသေးပါ"
+            }
             db_data["user_states"][chat_id] = "ADMIN_MAIN"
             save_db(db_data)
             bot.send_message(chat_id, f"✅ User {target_id} ကို ခွင့်ပြုလိုက်ပါပြီ။", reply_markup=get_admin_menu())
@@ -204,10 +221,13 @@ def handle_all_messages(message):
         if state == "AWAITING_BLOCK":
             if user_text in db_data["approved_users"]:
                 del db_data["approved_users"][user_text]
+                db_data["user_states"][user_text] = None # User state ကိုပါ ဖျက်ပေးခြင်း
                 save_db(db_data)
                 bot.send_message(chat_id, f"✅ User {user_text} ကို ပိတ်လိုက်ပါပြီ။", reply_markup=get_admin_menu())
-                try: send_force_start(user_text, "User")
-                except: pass
+                # စာတွေဖျက်၊ Tab ပိတ်မည့် Function ကို လှမ်းခေါ်ခြင်း
+                clear_user_chat_and_block(user_text)
+            else:
+                bot.send_message(chat_id, "❌ အဆိုပါ User ID ကို ရှာမတွေ့ပါ။", reply_markup=get_admin_menu())
             return
 
     # User Actions
@@ -221,11 +241,17 @@ def handle_all_messages(message):
         elif state == "USER_INPUT_PASSWORD":
             if user_text in db_data["keys_db"]:
                 link = db_data["keys_db"][user_text]
-                bot.send_message(chat_id, f"✅ မှန်ကန်ပါသည်။\n\n[👉 ဤနေရာကိုနှိပ်ပါ 👈]({link})", parse_mode="Markdown", reply_markup=get_user_menu())
+                
+                # သူသုံးလိုက်တဲ့ Key ကို ၎င်း User ရဲ့ အချက်အလက်ထဲမှာ သိမ်းလိုက်ခြင်း
+                db_data["approved_users"][chat_id]["used_key"] = user_text
                 db_data["user_states"][chat_id] = None
                 save_db(db_data)
+                
+                bot.send_message(chat_id, f"✅ မှန်ကန်ပါသည်။\n\n[👉 ဤနေရာကိုနှိပ်ပါ 👈]({link})", parse_mode="Markdown", reply_markup=get_user_menu())
             else:
-                bot.send_message(chat_id, "❌ Key မမှန်ပါ။")
+                bot.send_message(chat_id, "❌ Key မမှန်ပါ။ သေချာပြန်ရိုက်ပေးပါ သို့မဟုတ် /start ကိုနှိပ်ပါ။", reply_markup=get_user_menu())
+                db_data["user_states"][chat_id] = None
+                save_db(db_data)
 
 def start_bot():
     print("[!] Cleaning up connections...")
@@ -245,4 +271,4 @@ def start_bot():
 if __name__ == "__main__":
     Thread(target=run_web_server, daemon=True).start()
     start_bot()
-    
+
