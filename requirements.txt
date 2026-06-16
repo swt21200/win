@@ -1,2 +1,5 @@
 pyTelegramBotAPI
-Flask
+aiohttp
+opencv-python-headless
+ddddocr
+numpy
